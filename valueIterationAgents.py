@@ -228,4 +228,72 @@ class PrioritizedSweepingValueIterationAgent(AsynchronousValueIterationAgent):
 
     def runValueIteration(self):
         "*** YOUR CODE HERE ***"
+        numStates = len(self.mdp.getStates())
 
+        # Reset values to be something useful
+        self.values = {}
+        for state in self.mdp.getStates():
+            self.values[state] = 0
+
+        queue = util.PriorityQueue()
+        predecessors = {}
+
+        # Argmax for next states
+        for state in self.mdp.getStates():
+            bestQValue = -inf
+            possibleActions = self.mdp.getPossibleActions(state)
+            if len(possibleActions) == 0 or self.mdp.isTerminal(state):
+                continue
+            for action in possibleActions:
+                qValue = self.computeQValueFromValues(state, action)
+                if qValue > bestQValue:
+                    bestQValue = qValue
+
+                # Add to predecessors
+                transitions = self.mdp.getTransitionStatesAndProbs(state, action)
+                for (nextState, probability) in transitions:
+                    if probability == 0:
+                        continue
+                    if nextState in predecessors and state not in predecessors[nextState]:
+                        predecessors[nextState].append(copy(state))
+                    elif nextState not in predecessors:
+                        predecessors[nextState] = [copy(state)]
+
+            absError = abs(self.values[state] - bestQValue)
+            queue.push(state, -absError)
+        
+        # Run for k iterations
+        for _ in range(self.iterations):
+
+            if queue.isEmpty():
+                break
+    
+            state = queue.pop()
+
+            # Argmax for next state
+            bestQValue = -inf
+            possibleActions = self.mdp.getPossibleActions(state)
+            if len(possibleActions) > 0 and not self.mdp.isTerminal(state):
+                for action in possibleActions:
+                    qValue = self.computeQValueFromValues(state, action)
+                    if qValue > bestQValue:
+                        bestQValue = qValue
+
+                # Update state value only if there are possible actions
+                self.values[state] = bestQValue if bestQValue != -inf else None
+
+            # Loop through predecessors
+            for predecessor in predecessors[state]:
+                predecessorQValue = -inf
+                possibleActions = self.mdp.getPossibleActions(predecessor)
+                if len(possibleActions) == 0 or self.mdp.isTerminal(predecessor):
+                    continue
+                for action in possibleActions:
+                    qValue = self.computeQValueFromValues(predecessor, action)
+                    if qValue > predecessorQValue:
+                        predecessorQValue = qValue
+
+                # Compare to theta
+                absDiff = abs(self.values[predecessor] - predecessorQValue)
+                if absDiff > self.theta:
+                    queue.push(predecessor, -absDiff)
